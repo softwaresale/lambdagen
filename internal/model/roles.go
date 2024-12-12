@@ -35,49 +35,74 @@ func (role ObjectRole) IsValid() bool {
 
 // ParseObjectRoleDocstring parses a docstring looking for a valid object role. It finds the first role present. If
 // a role is present, then return the role and true. Otherwise, return empty and false.
-func ParseObjectRoleDocstring(docstrings ...string) (ObjectRole, bool) {
+func ParseObjectRoleDocstring(docsOrTags string) (ObjectRole, bool) {
 	roleExtractor := regexp.MustCompile(`lambdagen:(\S+)`)
 
-	for _, docstring := range docstrings {
-		fields := strings.Fields(docstring)
+	fields := strings.Fields(docsOrTags)
 
-		roleIdx := -1
-		role := ""
-		for idx, field := range fields {
-			matches := roleExtractor.FindStringSubmatch(field)
-			if matches == nil {
-				continue
-			}
-
-			if IsValidRoleStr(matches[1]) {
-				roleIdx = idx
-				role = matches[1]
-				break
-			}
+	roleIdx := -1
+	role := ""
+	for idx, field := range fields {
+		matches := roleExtractor.FindStringSubmatch(field)
+		if matches == nil {
+			continue
 		}
 
-		if roleIdx == -1 {
+		if IsValidRoleStr(matches[1]) {
+			roleIdx = idx
+			role = matches[1]
+			break
+		}
+	}
+
+	if roleIdx == -1 {
+		return ObjectRole{}, false
+	}
+
+	// find the "::" separator after the role
+	separatorIdx := -1
+	for idx, field := range fields[roleIdx:] {
+		if field == "::" {
+			separatorIdx = idx
+			break
+		}
+	}
+
+	// if we found args, pull them
+	argStr := ""
+	if separatorIdx != -1 {
+		argStr = strings.Join(fields[separatorIdx+1:], " ")
+	}
+
+	return ObjectRole{
+		Type: role,
+		Args: argStr,
+	}, true
+}
+
+func ParseObjectRoleTag(tag string) (ObjectRole, bool) {
+	parser := regexp.MustCompile(`lambdagen:"([^)]+)"`)
+
+	fields := strings.Fields(tag)
+	for _, field := range fields {
+		matches := parser.FindStringSubmatch(field)
+		if matches == nil {
+			continue
+		}
+
+		params := strings.Split(matches[1], ",")
+		if len(params) == 0 {
 			return ObjectRole{}, false
 		}
 
-		// find the "::" separator after the role
-		separatorIdx := -1
-		for idx, field := range fields[roleIdx:] {
-			if field == "::" {
-				separatorIdx = idx
-				break
-			}
-		}
-
-		// if we found args, pull them
-		argStr := ""
-		if separatorIdx != -1 {
-			argStr = strings.Join(fields[separatorIdx+1:], " ")
+		// param 1 should be a valid role
+		if !IsValidRoleStr(params[0]) {
+			return ObjectRole{}, false
 		}
 
 		return ObjectRole{
-			Type: role,
-			Args: argStr,
+			Type: params[0],
+			Args: strings.Join(params[1:], ","),
 		}, true
 	}
 
