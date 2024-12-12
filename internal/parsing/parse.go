@@ -20,12 +20,10 @@ func ParseHandlerFile(filename string) ([]model.ServiceDefinition, error) {
 		fset: fset,
 	}
 
-	/*
-		err = ast.Print(fset, parsedAst)
-		if err != nil {
-			return fmt.Errorf("failed to print AST: %w", err)
-		}
-	*/
+	err = ast.Print(fset, parsedAst)
+	if err != nil {
+		return nil, fmt.Errorf("failed to print AST: %w", err)
+	}
 
 	return builder.findServices(parsedAst)
 }
@@ -35,6 +33,9 @@ type LambdaModelBuilder struct {
 }
 
 func (builder *LambdaModelBuilder) findServices(parsedAst *ast.File) ([]model.ServiceDefinition, error) {
+
+	packageName := builder.getPackageName(parsedAst)
+
 	var err error
 	serviceDecls, err := builder.findServiceDecls(parsedAst)
 	if err != nil {
@@ -55,13 +56,18 @@ func (builder *LambdaModelBuilder) findServices(parsedAst *ast.File) ([]model.Se
 		}
 
 		serviceDefinition := model.ServiceDefinition{
-			Type:     serviceDecl,
-			Init:     initDecl,
-			Handlers: handlers,
+			PackageName: packageName,
+			Type:        serviceDecl,
+			Init:        initDecl,
+			Handlers:    handlers,
 		}
 
 		services = append(services, serviceDefinition)
 	}
 
 	return services, nil
+}
+
+func (builder *LambdaModelBuilder) getPackageName(parsedAst *ast.File) string {
+	return builder.fset.Position(parsedAst.Package).String()
 }

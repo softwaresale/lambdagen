@@ -1,4 +1,4 @@
-package main
+package codegen
 
 import "github.com/dave/jennifer/jen"
 

@@ -40,10 +40,13 @@ func (builder *LambdaModelBuilder) findServiceHandlers(file *ast.File, serviceTp
 			}
 
 			// check the parameters and find the arguments type
-			err = builder.checkHandlerParams(decl)
+			configParamIdent, err := builder.checkHandlerParams(decl)
 			if err != nil {
 				return nil, fmt.Errorf("error while checking function params: %w", err)
 			}
+
+			// pull out the request config object, which involves finding the appropriate declaration
+			requestConfig, err := builder.extractHandlerConfig(file, configParamIdent)
 
 			// parse the information from the role args to determine the method and path
 			method, path, err := parseHandlerArgString(role.Args)
@@ -55,6 +58,7 @@ func (builder *LambdaModelBuilder) findServiceHandlers(file *ast.File, serviceTp
 				Func:   decl,
 				Method: method,
 				Path:   path,
+				Config: requestConfig,
 			}
 
 			// we found a valid handler
@@ -140,10 +144,10 @@ func (builder *LambdaModelBuilder) checkValidHandlerReceiver(recvList *ast.Field
 	return nil
 }
 
-func (builder *LambdaModelBuilder) checkHandlerParams(decl *ast.FuncDecl) error {
+func (builder *LambdaModelBuilder) checkHandlerParams(decl *ast.FuncDecl) (*ast.Ident, error) {
 	// assert that the handler has two arguments
 	if decl.Type.Params.NumFields() > 2 || decl.Type.Results.NumFields() == 0 {
-		return fmt.Errorf(
+		return nil, fmt.Errorf(
 			"at function %s:\nparams %s: handler function should take 1-2 arguments. "+
 				"The first should be a context, and the second is an optional struct with request parameters",
 			builder.fset.Position(decl.Pos()),
@@ -154,15 +158,24 @@ func (builder *LambdaModelBuilder) checkHandlerParams(decl *ast.FuncDecl) error 
 	// assert that the first argument is of type context.Context
 	err := builder.verifyContextParam(decl.Type.Params.List[0])
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// next, we should figure out if there is a second argument. if there is not, then bail
 	if decl.Type.Params.NumFields() < 2 {
-		return nil
+		return nil, nil
 	}
 
-	return nil
+	// pull the next argument, which should be an identifier
+	// TODO: basically, this paradigm forces all request configs to be in the same file as the handler
+	configParam := decl.Type.Params.List[1]
+	switch typeExpr := configParam.Type.(type) {
+	case *ast.Ident:
+		return typeExpr, nil
+
+	default:
+		return nil, fmt.Errorf("%s: config arg must be an identifier. Selector's coming soon!", builder.fset.Position(configParam.Pos()))
+	}
 }
 
 func (builder *LambdaModelBuilder) determineHandlerType(decl *ast.FuncDecl) error {

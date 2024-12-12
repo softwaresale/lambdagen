@@ -1,32 +1,15 @@
-package main
+package codegen
 
 import (
 	"fmt"
 	"github.com/dave/jennifer/jen"
 	"io"
+	"lambdagen/internal/model"
 )
-
-type QualifiedName struct {
-	Package string
-	Name    string
-}
-
-func (name QualifiedName) Empty() bool {
-	return len(name.Name) == 0
-}
-
-type LambdaModel struct {
-	HandlerType QualifiedName
-	InitFunc    QualifiedName
-	HandlerFunc string
-	Args        map[string]VariableTp
-	ArgOrder    []string
-	BodyType    QualifiedName
-}
 
 type GenerationState struct {
 	File      *jen.File
-	Model     LambdaModel
+	Model     model.LambdaModel
 	Variables map[string]string
 }
 
@@ -35,7 +18,7 @@ const (
 	VariableRequest = "request"
 )
 
-func Transform(writer io.Writer, model LambdaModel) error {
+func Transform(writer io.Writer, model model.LambdaModel) error {
 	unit := jen.NewFile("main")
 
 	// make our lambda
@@ -136,20 +119,35 @@ func (state *GenerationState) formatLambdaHandler() *GenerationState {
 }
 
 func createRequestPayload(state *GenerationState, group *jen.Group, requestVarName string) {
-	for variable, tp := range state.Model.Args {
-		createPathParamVariable(state, group, variable, tp)
+
+	// mappings
+	var fieldVars map[string]string
+
+	// generate code for each path variable
+	for _, pathVar := range state.Model.Config.PathVariables {
+		pathVariableName := ""
+		fieldVars[pathVar.FieldName] = pathVariableName
 	}
 
-	// next, request body (if present)
-	bodyVar := ""
-	if !state.Model.BodyType.Empty() {
-		bodyVar = "body"
-		createRequestBodyVariable(state, group, bodyVar, state.Model.BodyType)
-		buildCheckError(group, failStrategyPanic)
+	if len(state.Model.Config.RequestBody.Name) > 0 {
+		bodyVar := "requestBody"
+		// TODO probably is bad to do this...
+		bodyName := model.NewQualifiedName(state.Model.Config.RequestBody.Type, "")
+		createRequestBodyVariable(state, group, bodyVar, bodyName)
+
+		fieldVars[state.Model.Config.RequestBody.FieldName] = bodyVar
 	}
+
+	// we know how to fill the field, so create
+	requestBodyName := model.NewQualifiedName(state.Model.Config.RequestBody.Type, "")
+	group.Id(requestVarName).Op(":=").Qual(requestBodyName.Package, requestBodyName.Name).Values(jen.DictFunc(func(dict jen.Dict) {
+		for field, variableName := range fieldVars {
+			dict[jen.Id(field)] = jen.Lit(variableName)
+		}
+	}))
 }
 
-func createPathParamVariable(state *GenerationState, group *jen.Group, variableName string, tp VariableTp) {
+func createPathParamVariable(state *GenerationState, group *jen.Group, variableName string, tp model.VariableTp) {
 	presentName := "present"
 	rawVarName := fmt.Sprintf("%sRaw", variableName)
 
@@ -162,10 +160,10 @@ func createPathParamVariable(state *GenerationState, group *jen.Group, variableN
 	)
 
 	// build any conversion code
-	tp.ConversionCode(group, rawVarName, variableName)
+	ConversionCode(group, tp, rawVarName, variableName)
 }
 
-func createRequestBodyVariable(state *GenerationState, group *jen.Group, bodyVar string, bodyTp QualifiedName) {
+func createRequestBodyVariable(state *GenerationState, group *jen.Group, bodyVar string, bodyTp model.QualifiedName) {
 	// make the variable and unmarshal the body
 	bodyPayloadName := "bodyBytes"
 	group.Var().Id(bodyVar).Qual(bodyTp.Package, bodyTp.Name)

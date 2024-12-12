@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
-	"go/token"
 	"lambdagen/internal/model"
 	"regexp"
 )
@@ -15,19 +14,9 @@ func (builder *LambdaModelBuilder) findServiceDecls(parsedAst *ast.File) ([]mode
 	for _, decl := range parsedAst.Decls {
 		switch decl := decl.(type) {
 		case *ast.GenDecl:
-			// only interested in type decls
-			if decl.Tok != token.TYPE {
-				continue
-			}
 
-			// there should be a single handler
-			if len(decl.Specs) != 1 {
-				continue
-			}
-
-			typeSpec, ok := decl.Specs[0].(*ast.TypeSpec)
-			if !ok {
-				fmt.Printf("skipping decl %s because it isn't a type spec", builder.fset.Position(decl.Specs[0].Pos()))
+			typeSpec := genDeclIsTypeSpec(decl)
+			if typeSpec == nil {
 				continue
 			}
 
