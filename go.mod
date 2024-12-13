@@ -1,4 +1,4 @@
-module lambdagen
+module github.com/softwaresale/lambdagen
 
 go 1.23.0
 
