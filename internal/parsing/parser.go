@@ -135,6 +135,7 @@ func (parser *ServiceParser) parseServiceDefinition(handlerObj types.Object) (mo
 	}
 
 	return model.ServiceDefinition{
+		Pkg:      parser.pkg,
 		Type:     handlerObj.Type(),
 		Init:     initializerFunctionObj,
 		Handlers: handlerDefs,
@@ -294,6 +295,8 @@ func (parser *ServiceParser) extractHandlerConfig(handlerFunc *ast.FuncDecl) (mo
 		if !ok {
 			return model.HandlerConfig{}, fmt.Errorf("expected struct, got %s", argType.String())
 		}
+
+		handlerConfig.Type = argType
 
 		for i := range structTp.NumFields() {
 			field := structTp.Field(i)

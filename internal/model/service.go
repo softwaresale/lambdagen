@@ -2,13 +2,15 @@ package model
 
 import (
 	"go/types"
+	"golang.org/x/tools/go/packages"
 )
 
 // ServiceDefinition describes an API with a collection of endpoint handlers
 type ServiceDefinition struct {
-	Type     types.Type   // Type is the type of the struct that is designated the struct handler
-	Init     types.Object // Init is the function responsible for initializing this service
-	Handlers []HandlerDefinition
+	Pkg      *packages.Package   // Pkg is the package that contains this service def. Used for translation stuff
+	Type     types.Type          // Type is the type of the struct that is designated the struct handler
+	Init     types.Object        // Init is the function responsible for initializing this service
+	Handlers []HandlerDefinition // Handlers is the collection of handler methods
 }
 
 type HandlerDefinition struct {
@@ -19,6 +21,7 @@ type HandlerDefinition struct {
 }
 
 type HandlerConfig struct {
+	Type  *types.Named
 	Query []VariableDefinition
 	Path  []VariableDefinition
 	Body  VariableDefinition
