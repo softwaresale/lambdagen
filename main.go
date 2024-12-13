@@ -92,7 +92,7 @@ func createHandlersForModule(mod string) error {
 				return fmt.Errorf("error while translating handler: %w", err)
 			}
 
-			err = outputMetadata(handler, lambdaOutputDir)
+			err = outputMetadata(service, handler, lambdaOutputDir)
 			if err != nil {
 				return fmt.Errorf("error while writing metadata: %w", err)
 			}
@@ -102,7 +102,14 @@ func createHandlersForModule(mod string) error {
 	return nil
 }
 
-func outputMetadata(handler model.HandlerDefinition, lambdaDir string) error {
+func outputMetadata(serviceDef model.ServiceDefinition, handler model.HandlerDefinition, lambdaDir string) error {
+
+	// get an optional base path
+	basePath, ok := serviceDef.Config["base_path"]
+	if ok {
+		handler.Path = filepath.Join(basePath, handler.Path)
+	}
+
 	outputPath := filepath.Join(lambdaDir, "spec.json")
 	metadata := model.LambdaMetadata{
 		Method: handler.Method,
