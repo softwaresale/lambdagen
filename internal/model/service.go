@@ -11,6 +11,7 @@ type ServiceDefinition struct {
 	Type     types.Type          // Type is the type of the struct that is designated the struct handler
 	Init     types.Object        // Init is the function responsible for initializing this service
 	Handlers []HandlerDefinition // Handlers is the collection of handler methods
+	Config   map[string]string   // Config is service-level configuration variables provided in the header line
 }
 
 type HandlerDefinition struct {

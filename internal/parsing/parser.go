@@ -3,11 +3,11 @@ package parsing
 import (
 	"fmt"
 	"github.com/iancoleman/strcase"
+	"github.com/softwaresale/lambdagen/internal/model"
 	"go/ast"
 	"go/token"
 	"go/types"
 	"golang.org/x/tools/go/packages"
-	"lambdagen/internal/model"
 	"log"
 	"strings"
 )
@@ -53,9 +53,14 @@ func ParseServices(basePath, modulePath string) ([]model.ServiceDefinition, erro
 	return serviceDefinitions, nil
 }
 
+type ServiceHandlerInfo struct {
+	Obj    types.Object
+	Config map[string]string
+}
+
 func (parser *ServiceParser) parseServiceDefinitions(decls []ast.Decl) ([]model.ServiceDefinition, error) {
 
-	var serviceHandlerObjects []types.Object
+	var serviceHandlerObjects []ServiceHandlerInfo
 	for _, decl := range decls {
 		switch decl := decl.(type) {
 		case *ast.GenDecl:
@@ -78,6 +83,9 @@ func (parser *ServiceParser) parseServiceDefinitions(decls []ast.Decl) ([]model.
 				continue
 			}
 
+			// pull any config from the args
+			serviceConfig := role.GetServiceConfig()
+
 			// this type is a service type, so we need to find any structs
 			for _, spec := range decl.Specs {
 				typeSpec, ok := spec.(*ast.TypeSpec)
@@ -86,7 +94,10 @@ func (parser *ServiceParser) parseServiceDefinitions(decls []ast.Decl) ([]model.
 				}
 
 				handlerObj := parser.pkg.TypesInfo.ObjectOf(typeSpec.Name)
-				serviceHandlerObjects = append(serviceHandlerObjects, handlerObj)
+				serviceHandlerObjects = append(serviceHandlerObjects, ServiceHandlerInfo{
+					Obj:    handlerObj,
+					Config: serviceConfig,
+				})
 			}
 
 		default:
@@ -96,7 +107,7 @@ func (parser *ServiceParser) parseServiceDefinitions(decls []ast.Decl) ([]model.
 
 	var services []model.ServiceDefinition
 	for _, handler := range serviceHandlerObjects {
-		fmt.Printf("got handler: %s\n", handler.String())
+		fmt.Printf("got handler: %s\n", handler.Obj.String())
 
 		service, err := parser.parseServiceDefinition(handler)
 		if err != nil {
@@ -110,18 +121,18 @@ func (parser *ServiceParser) parseServiceDefinitions(decls []ast.Decl) ([]model.
 	return services, nil
 }
 
-func (parser *ServiceParser) parseServiceDefinition(handlerObj types.Object) (model.ServiceDefinition, error) {
+func (parser *ServiceParser) parseServiceDefinition(handlerObj ServiceHandlerInfo) (model.ServiceDefinition, error) {
 
 	// find the service initializer
-	serviceInit := parser.findServiceInitializer(handlerObj)
+	serviceInit := parser.findServiceInitializer(handlerObj.Obj)
 	if serviceInit == nil {
-		return model.ServiceDefinition{}, fmt.Errorf("service has now initializer for %s", handlerObj.String())
+		return model.ServiceDefinition{}, fmt.Errorf("service has now initializer for %s", handlerObj.Obj.String())
 	}
 
 	initializerFunctionObj := parser.pkg.TypesInfo.ObjectOf(serviceInit.Name)
 
 	// we know the type, let's find the handlers
-	handlerDecls := parser.extractHandlerMethods(handlerObj)
+	handlerDecls := parser.extractHandlerMethods(handlerObj.Obj)
 
 	var handlerDefs []model.HandlerDefinition
 	for _, decl := range handlerDecls {
@@ -136,9 +147,10 @@ func (parser *ServiceParser) parseServiceDefinition(handlerObj types.Object) (mo
 
 	return model.ServiceDefinition{
 		Pkg:      parser.pkg,
-		Type:     handlerObj.Type(),
+		Type:     handlerObj.Obj.Type(),
 		Init:     initializerFunctionObj,
 		Handlers: handlerDefs,
+		Config:   handlerObj.Config,
 	}, nil
 }
 

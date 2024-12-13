@@ -3,9 +3,9 @@ package codegen
 import (
 	"fmt"
 	"github.com/dave/jennifer/jen"
+	"github.com/softwaresale/lambdagen/internal/model"
 	"go/types"
 	"io"
-	"lambdagen/internal/model"
 )
 
 const (

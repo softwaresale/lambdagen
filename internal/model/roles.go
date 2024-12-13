@@ -33,6 +33,24 @@ func (role ObjectRole) IsValid() bool {
 	return IsValidRoleStr(role.Type)
 }
 
+func (role ObjectRole) GetServiceConfig() map[string]string {
+
+	// return nil if incorrect role
+	if role.Type != ObjectRoleServiceTp {
+		return nil
+	}
+
+	parser := regexp.MustCompile(`([a-zA-Z_]\w*)=(\S+)`)
+
+	config := make(map[string]string)
+	matches := parser.FindAllStringSubmatch(role.Args, -1)
+	for _, match := range matches {
+		config[match[1]] = match[2]
+	}
+
+	return config
+}
+
 // ParseObjectRoleDocstring parses a docstring looking for a valid object role. It finds the first role present. If
 // a role is present, then return the role and true. Otherwise, return empty and false.
 func ParseObjectRoleDocstring(docsOrTags string) (ObjectRole, bool) {
