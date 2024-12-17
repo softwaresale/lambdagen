@@ -59,10 +59,14 @@ func (gen *ServiceGenerator) formatInitFunc(group *jen.Group) {
 		// load the config
 		cfgVar := "cfg"
 		group.List(jen.Id(cfgVar), jen.Err()).Op(":=").Qual("github.com/aws/aws-sdk-go-v2/config", "LoadDefaultConfig").Call(jen.Qual("context", "TODO").Call())
-		handleErr(group)
+		CheckError(group, func(group *jen.Group) {
+			group.Panic(jen.Err())
+		})
 
 		group.List(jen.Id(VariableHandler), jen.Err()).Op("=").Qual(gen.def.Init.Pkg().Path(), gen.def.Init.Name()).Call(jen.Id(cfgVar))
-		handleErr(group)
+		CheckError(group, func(group *jen.Group) {
+			group.Panic(jen.Err())
+		})
 	})
 }
 
@@ -89,12 +93,16 @@ func (gen *ServiceGenerator) formatHandler(group *jen.Group) {
 			jen.Id(VariableContext),
 			jen.Id(configVar),
 		)
-		handleErr(group)
+		CheckError(group, func(ifGroup *jen.Group) {
+			GenerateAPIError(ifGroup, 500, "error while processing handler")
+		})
 
 		// Serialize the body
 		encodedResponseVar := "responseBody"
 		group.List(jen.Id(encodedResponseVar), jen.Err()).Op(":=").Qual("encoding/json", "Marshal").Call(jen.Id(responseVar))
-		handleErr(group)
+		CheckError(group, func(ifGroup *jen.Group) {
+			GenerateAPIError(ifGroup, 500, "failed to serialize body")
+		})
 
 		group.Return(
 			jen.List(
@@ -139,9 +147,9 @@ func (gen *ServiceGenerator) formatRequestConfig(group *jen.Group, configVar str
 func (gen *ServiceGenerator) formatPathVariable(group *jen.Group, pathVar model.VariableDefinition) {
 	// load the
 	rawVariable := fmt.Sprintf("%sRaw", pathVar.Name)
-	group.List(jen.Id(rawVariable), jen.Id("ok")).Op(":=").Id(VariableRequest).Dot("PathVariables").Index(jen.Id(pathVar.Name))
+	group.List(jen.Id(rawVariable), jen.Id("ok")).Op(":=").Id(VariableRequest).Dot("PathParameters").Index(jen.Id(pathVar.Name))
 	group.If(jen.Op("!").Id("ok")).BlockFunc(func(group *jen.Group) {
-		group.Panic(jen.Lit("variable not found"))
+		GenerateAPIError(group, 400, fmt.Sprintf("path variable '%s' not found", pathVar.Name))
 	})
 
 	// generate conversion code
@@ -153,7 +161,7 @@ func (gen *ServiceGenerator) formatQueryVariable(group *jen.Group, pathVar model
 	rawVariable := fmt.Sprintf("%sRaw", pathVar.Name)
 	group.List(jen.Id(rawVariable), jen.Id("ok")).Op(":=").Id(VariableRequest).Dot("QueryParams").Index(jen.Id(pathVar.Name))
 	group.If(jen.Op("!").Id("ok")).BlockFunc(func(group *jen.Group) {
-		group.Panic(jen.Lit("variable not found"))
+		GenerateAPIError(group, 400, fmt.Sprintf("query variable '%s' not found", pathVar.Name))
 	})
 
 	// generate conversion code
@@ -182,17 +190,11 @@ func (gen *ServiceGenerator) formatBody(group *jen.Group, bodyVar string) {
 	group.Id(unmarshalVar).Op(":=").Index().Byte().Parens(jen.Id(VariableRequest).Dot("Body"))
 	group.Var().Id(bodyVar).Do(typeFunc)
 	group.Err().Op("=").Qual("encoding/json", "Unmarshal").Call(jen.Id(unmarshalVar), jen.Op("&").Id(bodyVar))
-	handleErr(group)
+	GenerateAPIError(group, 500, fmt.Sprintf("failed to unmarshal body"))
 }
 
 func (gen *ServiceGenerator) formatMainFunc(group *jen.Group) {
 	group.Func().Id("main").Params().Block(
 		jen.Qual("github.com/aws/aws-lambda-go/lambda", "Start").Call(jen.Id(HandlerFunc)),
-	)
-}
-
-func handleErr(group *jen.Group) {
-	group.If(jen.Err().Op("!=").Nil()).Block(
-		jen.Panic(jen.Lit("error encountered")),
 	)
 }
