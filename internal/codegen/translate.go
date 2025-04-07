@@ -147,7 +147,7 @@ func (gen *ServiceGenerator) formatRequestConfig(group *jen.Group, configVar str
 func (gen *ServiceGenerator) formatPathVariable(group *jen.Group, pathVar model.VariableDefinition) {
 	// load the
 	rawVariable := fmt.Sprintf("%sRaw", pathVar.Name)
-	group.List(jen.Id(rawVariable), jen.Id("ok")).Op(":=").Id(VariableRequest).Dot("PathParameters").Index(jen.Id(pathVar.Name))
+	group.List(jen.Id(rawVariable), jen.Id("ok")).Op(":=").Id(VariableRequest).Dot("PathParameters").Index(jen.Lit(pathVar.Name))
 	group.If(jen.Op("!").Id("ok")).BlockFunc(func(group *jen.Group) {
 		GenerateAPIError(group, 400, fmt.Sprintf("path variable '%s' not found", pathVar.Name))
 	})
@@ -159,7 +159,7 @@ func (gen *ServiceGenerator) formatPathVariable(group *jen.Group, pathVar model.
 func (gen *ServiceGenerator) formatQueryVariable(group *jen.Group, pathVar model.VariableDefinition) {
 	// load the
 	rawVariable := fmt.Sprintf("%sRaw", pathVar.Name)
-	group.List(jen.Id(rawVariable), jen.Id("ok")).Op(":=").Id(VariableRequest).Dot("QueryParams").Index(jen.Id(pathVar.Name))
+	group.List(jen.Id(rawVariable), jen.Id("ok")).Op(":=").Id(VariableRequest).Dot("QueryParams").Index(jen.Lit(pathVar.Name))
 	group.If(jen.Op("!").Id("ok")).BlockFunc(func(group *jen.Group) {
 		GenerateAPIError(group, 400, fmt.Sprintf("query variable '%s' not found", pathVar.Name))
 	})

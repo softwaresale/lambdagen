@@ -17,7 +17,7 @@ func GenerateAPIError(group *jen.Group, status int, message string) {
 
 	responseBodyVar := "errorResponseBody"
 
-	group.List(group.Id(responseBodyVar), jen.Err()).Op(":=").Qual("encoding/json", "Marshal").Call(jen.Id(apiErrVar))
+	group.List(jen.Id(responseBodyVar), jen.Err()).Op(":=").Qual("encoding/json", "Marshal").Call(jen.Id(apiErrVar))
 	group.If(jen.Err().Op("!=").Nil()).Block(
 		jen.Return(jen.List(
 			jen.Qual("github.com/aws/aws-lambda-go/events", "APIGatewayProxyResponse").Values(jen.Dict{}),
